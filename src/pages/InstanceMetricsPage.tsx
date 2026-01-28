@@ -8,7 +8,7 @@
  * - Scaling decisions table with timestamps, decisions, and reasons
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import * as metricsService from '../services/metricsService';
@@ -33,26 +33,24 @@ const InstanceMetricsPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    /**
-     * Fetch metrics and decisions on component mount
-     */
-    useEffect(() => {
-        if (!instanceId) {
-            setError('Instance ID is missing');
-            setLoading(false);
-            return;
-        }
 
-        fetchData();
-    }, [instanceId]);
+    // Ref to store interval ID for cleanup
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     /**
      * Fetch metrics and scaling decisions from API
+     * @param isBackgroundRefresh - If true, skip loading spinner (for polling)
+     * 
+     * Memoized with useCallback to prevent recreation on every render
+     * Only recreates when instanceId changes
      */
-    const fetchData = async () => {
+    const fetchData = useCallback(async (isBackgroundRefresh: boolean = false) => {
         if (!instanceId) return;
 
-        setLoading(true);
+        // Only show loading spinner on initial load, not during background polling
+        if (!isBackgroundRefresh) {
+            setLoading(true);
+        }
         setError(null);
 
         try {
@@ -64,12 +62,50 @@ const InstanceMetricsPage: React.FC = () => {
 
             setMetrics(metricsData);
             setDecisions(decisionsData);
+
+            // Clear any previous errors on successful refresh
+            setError(null);
         } catch (err: any) {
-            setError(err.message);
+            // During background refresh, silently fail to avoid disrupting UX
+            // Only update error state on initial load
+            if (!isBackgroundRefresh) {
+                setError(err.message);
+            }
         } finally {
-            setLoading(false);
+            if (!isBackgroundRefresh) {
+                setLoading(false);
+            }
         }
-    };
+    }, [instanceId]); // Only recreate when instanceId changes
+
+    /**
+     * Fetch metrics and decisions on component mount
+     * and set up auto-refresh polling
+     */
+    useEffect(() => {
+        if (!instanceId) {
+            setError('Instance ID is missing');
+            setLoading(false);
+            return;
+        }
+
+        // Initial fetch with loading state
+        fetchData();
+
+        // Set up polling to fetch data every 30 seconds (matches backend metric collection interval)
+        pollingIntervalRef.current = setInterval(() => {
+            fetchData(true); // Pass true to indicate background refresh (no loading spinner)
+        }, 30000);
+
+        // Cleanup: clear interval when component unmounts or instanceId changes
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+    }, [instanceId, fetchData]); // fetchData is now safe to include (memoized with useCallback)
+
 
     /**
      * Navigate back to instances list
@@ -93,6 +129,11 @@ const InstanceMetricsPage: React.FC = () => {
     // Transform metrics data for charts
     const cpuData = transformMetricsForChart(metrics, 'cpu_utilization');
     const memoryData = transformMetricsForChart(metrics, 'memory_usage');
+
+    // function formatDateTimeToIST(timestamp: string) {
+    //     return new Date(timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", });
+    // }
+
 
     return (
         <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
@@ -231,7 +272,7 @@ const InstanceMetricsPage: React.FC = () => {
             {/* Refresh button */}
             <div style={{ marginTop: '30px' }}>
                 <button
-                    onClick={fetchData}
+                    onClick={() => fetchData()}
                     style={{
                         padding: '10px 20px',
                         backgroundColor: '#1976d2',

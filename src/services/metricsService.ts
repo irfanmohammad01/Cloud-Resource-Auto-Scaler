@@ -28,7 +28,7 @@ export const getMetrics = async (instanceId: string, limit: number = 100): Promi
             { params: { limit } }
         );
         return response.data.metrics;
-    } catch (error: any) {
+    } catch (error: any) {  
         const errorMessage = error.response?.data?.error || 'Failed to fetch metrics.';
         throw new Error(errorMessage);
     }
@@ -45,10 +45,7 @@ export const getMetrics = async (instanceId: string, limit: number = 100): Promi
  * @returns Array of ScalingDecision objects
  * @throws Error if instance not found or unauthorized
  */
-export const getScalingDecisions = async (
-    instanceId: string,
-    limit: number = 50
-): Promise<ScalingDecision[]> => {
+export const getScalingDecisions = async (instanceId: string, limit: number = 50,): Promise<ScalingDecision[]> => {
     try {
         const response = await axiosInstance.get<ScalingDecisionsResponse>(
             `/api/metrics/decisions/${instanceId}`,
