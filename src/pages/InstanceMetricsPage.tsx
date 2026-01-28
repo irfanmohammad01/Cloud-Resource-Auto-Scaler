@@ -130,10 +130,6 @@ const InstanceMetricsPage: React.FC = () => {
     const cpuData = transformMetricsForChart(metrics, 'cpu_utilization');
     const memoryData = transformMetricsForChart(metrics, 'memory_usage');
 
-    // function formatDateTimeToIST(timestamp: string) {
-    //     return new Date(timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", });
-    // }
-
 
     return (
         <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
@@ -227,42 +223,45 @@ const InstanceMetricsPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {decisions.map((decision) => (
-                                    <tr key={decision.id} style={{ borderBottom: '1px solid #ddd' }}>
-                                        <td style={{ padding: '12px', fontSize: '14px' }}>
-                                            {formatDateTime(decision.timestamp)}
-                                        </td>
-                                        <td style={{ padding: '12px' }}>
-                                            <span style={{
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                fontSize: '12px',
-                                                fontWeight: 'bold',
-                                                backgroundColor:
-                                                    decision.decision === 'scale_up' ? '#ffebee' :
-                                                        decision.decision === 'scale_down' ? '#e8f5e9' :
-                                                            '#fff3e0',
-                                                color:
-                                                    decision.decision === 'scale_up' ? '#d32f2f' :
-                                                        decision.decision === 'scale_down' ? '#2e7d32' :
-                                                            '#ef6c00',
-                                            }}>
-                                                {decision.decision === 'scale_up' ? 'SCALE UP' :
-                                                    decision.decision === 'scale_down' ? 'SCALE DOWN' :
-                                                        'NO ACTION'}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '14px' }}>
-                                            {decision.cpu_utilization.toFixed(2)}%
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '14px' }}>
-                                            {decision.memory_usage.toFixed(2)}%
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '14px', maxWidth: '400px' }}>
-                                            {decision.reason}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {decisions.map((decision) => {
+                                    console.log('Formatted timestamp:', formatDateTime(decision.timestamp), 'Raw timestamp:', decision.timestamp);
+                                    return (
+                                        <tr key={decision.id} style={{ borderBottom: '1px solid #ddd' }}>
+                                            <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                {formatDateTime(decision.timestamp)}
+                                            </td>
+                                            <td style={{ padding: '12px' }}>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px',
+                                                    fontWeight: 'bold',
+                                                    backgroundColor:
+                                                        decision.decision === 'scale_up' ? '#ffebee' :
+                                                            decision.decision === 'scale_down' ? '#e8f5e9' :
+                                                                '#fff3e0',
+                                                    color:
+                                                        decision.decision === 'scale_up' ? '#d32f2f' :
+                                                            decision.decision === 'scale_down' ? '#2e7d32' :
+                                                                '#ef6c00',
+                                                }}>
+                                                    {decision.decision === 'scale_up' ? 'SCALE UP' :
+                                                        decision.decision === 'scale_down' ? 'SCALE DOWN' :
+                                                            'NO ACTION'}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                {decision.cpu_utilization.toFixed(2)}%
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                {decision.memory_usage.toFixed(2)}%
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '14px', maxWidth: '400px' }}>
+                                                {decision.reason}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

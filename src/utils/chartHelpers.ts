@@ -33,8 +33,12 @@ export const transformMetricsForChart = (
  * @returns Formatted time string (HH:MM:SS)
  */
 export const formatTimestamp = (isoString: string): string => {
-    const date = new Date(isoString);
+    const utcString = isoString.endsWith('Z')
+        ? isoString
+        : `${isoString}Z`;
+    const date = new Date(utcString);
     return date.toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
@@ -48,8 +52,12 @@ export const formatTimestamp = (isoString: string): string => {
  * @returns Formatted date and time string
  */
 export const formatDateTime = (isoString: string): string => {
-    const date = new Date(isoString);
-    return date.toLocaleString('en-US', {
+    const utcString = isoString.endsWith('Z')
+        ? isoString
+        : `${isoString}Z`;
+    const date = new Date(utcString);
+    return date.toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Kolkata',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',

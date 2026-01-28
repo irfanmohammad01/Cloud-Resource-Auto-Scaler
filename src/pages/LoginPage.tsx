@@ -1,10 +1,3 @@
-/**
- * LoginPage component
- * 
- * Handles user authentication with email and password
- * On successful login, saves JWT token and redirects to instances list
- */
-
 import React, { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -15,39 +8,27 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const { login: setAuthToken } = useAuth();
 
-    // Form state
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
 
-    // UI state
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
-    /**
-     * Handle login form submission
-     */
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
-        // Clear previous errors
         setError(null);
 
-        // Basic validation
-        if (!email || !password) {
-            setError('Please enter both email and password');
+        if (!authService.isValidEmail(email) || !authService.isValidPassword(password)) {
+            setError('Please enter valid email and password');
             return;
         }
 
         setLoading(true);
 
         try {
-            // Call login API
             const response = await authService.login(email, password);
-
-            // Save token and update auth state
             setAuthToken(response.token);
-
-            // Redirect to instances page
             navigate('/instances');
         } catch (err: any) {
             setError(err.message);

@@ -1,10 +1,3 @@
-/**
- * RegisterPage component
- * 
- * Handles new user registration with email and password
- * On successful registration, automatically logs in and redirects to instances list
- */
-
 import React, { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -15,52 +8,34 @@ const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
     const { login: setAuthToken } = useAuth();
 
-    // Form state
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [confirmPassword, setConfirmPassword] = useState<string>('');
 
-    // UI state
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<boolean>(false);
 
-    /**
-     * Validate email format
-     */
-    const isValidEmail = (email: string): boolean => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    };
-
-    /**
-     * Handle registration form submission
-     */
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
-        // Clear previous errors
         setError(null);
 
-        // Basic validation
         if (!email || !password || !confirmPassword) {
             setError('Please fill in all fields');
             return;
         }
 
-        // Email validation
-        if (!isValidEmail(email)) {
+        if (!authService.isValidEmail(email)) {
             setError('Please enter a valid email address');
             return;
         }
 
-        // Password validation
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters long');
+        if (!authService.isValidPassword(password)) {
+            setError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character');
             return;
         }
 
-        // Password match validation
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;
@@ -69,18 +44,15 @@ const RegisterPage: React.FC = () => {
         setLoading(true);
 
         try {
-            // Call registration API
+
             await authService.register(email, password);
 
             setSuccess(true);
 
-            // Auto-login after successful registration
             const loginResponse = await authService.login(email, password);
 
-            // Save token and update auth state
             setAuthToken(loginResponse.token);
 
-            // Redirect to instances page
             navigate('/instances');
         } catch (err: any) {
             setError(err.message);
