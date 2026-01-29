@@ -33,16 +33,18 @@ const MetricsChart: React.FC<MetricsChartProps> = ({ data, title, dataKey, color
                 <p style={{ color: '#666', fontStyle: 'italic' }}>No data available</p>
             ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <LineChart data={data} margin={{ top: 20, right: 20, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
                             dataKey="timestamp"
                             angle={-45}
                             textAnchor="end"
                             height={80}
+                            tick={{ fontSize: 12 }}
+                            interval="preserveStartEnd"
                         />
                         <YAxis
-                            label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }}
+                            label={{ value: 'Percentage (%)', dx: 0, dy: 50, angle: -90, position: 'insideLeft' }}
                             domain={[0, 100]}
                         />
                         <Tooltip />

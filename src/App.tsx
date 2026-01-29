@@ -9,6 +9,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import InstancesListPage from './pages/InstancesListPage';
@@ -19,11 +21,28 @@ const App: React.FC = () => {
         <AuthProvider>
             <Router>
                 <Routes>
-                    {/* Public routes */}
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
+                    {/* Public landing page */}
+                    <Route path="/" element={<LandingPage />} />
 
-                    {/* Protected routes */}
+                    {/* Public routes - redirect to instances if already authenticated */}
+                    <Route
+                        path="/login"
+                        element={
+                            <PublicRoute>
+                                <LoginPage />
+                            </PublicRoute>
+                        }
+                    />
+                    <Route
+                        path="/register"
+                        element={
+                            <PublicRoute>
+                                <RegisterPage />
+                            </PublicRoute>
+                        }
+                    />
+
+                    {/* Protected routes - redirect to login if not authenticated */}
                     <Route
                         path="/instances"
                         element={
@@ -42,11 +61,8 @@ const App: React.FC = () => {
                         }
                     />
 
-                    {/* Default redirect to instances */}
-                    <Route path="/" element={<Navigate to="/instances" replace />} />
-
-                    {/* Catch-all redirect to login */}
-                    <Route path="*" element={<Navigate to="/login" replace />} />
+                    {/* Catch-all redirect to landing page */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </Router>
         </AuthProvider>

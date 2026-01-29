@@ -44,3 +44,27 @@ export interface ChartDataPoint {
     timestamp: string;
     value: number;
 }
+
+// Request body for POST /api/metrics/simulate
+export interface SimulateMetricsRequest {
+    instance_id: string;
+    cpu_utilization?: number;
+    memory_usage?: number;
+    duration_minutes?: number;
+    interval_seconds?: number;
+}
+
+// Response from POST /api/metrics/simulate (instant)
+export interface SimulateMetricsInstantResponse {
+    message: string;
+    metric: Metric;
+}
+
+// Response from POST /api/metrics/simulate (prolonged)
+export interface SimulateMetricsProlongedResponse {
+    message: string;
+    metrics_created: number;
+    duration_minutes: number;
+    interval_seconds: number;
+    sample_metrics: any[];
+}

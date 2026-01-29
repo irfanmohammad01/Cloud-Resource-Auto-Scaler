@@ -51,3 +51,15 @@ input {
 table {
   font-size: 14px;
 }
+
+/* Landing page header button hover */
+header button:hover {
+  background-color: #f5f5f5;
+  border-color: #999;
+}
+
+/* Footer link hover styles */
+footer a:hover {
+  color: #1976d2;
+  text-decoration: underline;
+}

@@ -165,6 +165,39 @@ const InstancesListPage: React.FC = () => {
     };
 
     /**
+     * Delete an instance
+     */
+    const handleDeleteInstance = async (instance: Instance) => {
+        // Request user confirmation
+        const confirmed = window.confirm(
+            `Are you sure you want to delete instance "${instance.instance_id}"?\n\nThis action cannot be undone.`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setActionLoading(instance.instance_id);
+        setError(null);
+
+        try {
+            await instanceService.deleteInstance(instance.instance_id);
+
+            // Remove instance from local state
+            setInstances((prev) =>
+                prev.filter((inst) => inst.instance_id !== instance.instance_id)
+            );
+
+            setSuccessMessage('Instance deleted successfully');
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    /**
      * Navigate to instance metrics page
      */
     const handleViewMetrics = (instance: Instance) => {
@@ -176,7 +209,7 @@ const InstancesListPage: React.FC = () => {
      */
     const handleLogout = () => {
         logout();
-        navigate('/login');
+        navigate('/');
     };
 
     if (loading) {
@@ -193,14 +226,30 @@ const InstancesListPage: React.FC = () => {
 
             {/* Success message */}
             {successMessage && (
-                <div style={{
-                    color: '#2e7d32',
-                    padding: '10px',
-                    marginBottom: '15px',
-                    border: '1px solid #2e7d32',
-                    borderRadius: '4px',
-                    backgroundColor: '#e8f5e9',
-                }}>
+                <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                        // Prevent layout shift: fixed-positioned notifications do not take space in normal flow.
+                        position: 'fixed',
+                        top: 16,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 1000,
+
+                        color: '#2e7d32',
+                        padding: '10px',
+                        border: '1px solid #2e7d32',
+                        borderRadius: '4px',
+                        backgroundColor: '#e8f5e9',
+
+                        // Keep it readable without heavy styling.
+                        maxWidth: 600,
+                        width: 'calc(100% - 40px)',
+                        boxSizing: 'border-box',
+                        textAlign: 'center',
+                    }}
+                >
                     {successMessage}
                 </div>
             )}
@@ -420,6 +469,7 @@ const InstancesListPage: React.FC = () => {
                                         onClick={() => handleViewMetrics(instance)}
                                         style={{
                                             padding: '6px 12px',
+                                            marginRight: '8px',
                                             backgroundColor: '#1976d2',
                                             color: 'white',
                                             border: 'none',
@@ -429,6 +479,21 @@ const InstancesListPage: React.FC = () => {
                                         }}
                                     >
                                         View Metrics
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteInstance(instance)}
+                                        disabled={actionLoading === instance.instance_id}
+                                        style={{
+                                            padding: '6px 12px',
+                                            backgroundColor: actionLoading === instance.instance_id ? '#ccc' : '#d32f2f',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: actionLoading === instance.instance_id ? 'not-allowed' : 'pointer',
+                                            fontSize: '14px',
+                                        }}
+                                    >
+                                        {actionLoading === instance.instance_id ? 'Deleting...' : 'Delete'}
                                     </button>
                                 </td>
                             </tr>

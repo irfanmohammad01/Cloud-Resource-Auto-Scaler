@@ -34,5 +34,51 @@ export const removeToken = (): void => {
  * Check if user is authenticated (token exists)
  */
 export const isAuthenticated = (): boolean => {
-    return getToken() !== null;
+    const token = getToken();
+    if (!token) return false;
+    return isTokenValid(token);
+};
+
+/**
+ * Lightweight JWT validation (frontend-only).
+ *
+ * - Ensures the token can be decoded
+ * - If an `exp` claim exists, ensures it is not expired
+ *
+ * NOTE: This does NOT prove the token signature is valid (requires server).
+ * It prevents obvious UX issues like using an expired token.
+ */
+export const isTokenValid = (token: string): boolean => {
+    const payload = decodeJwtPayload(token);
+    if (!payload) return false;
+
+    // If exp is missing, treat token as "present" (can't validate expiry).
+    if (typeof payload.exp !== 'number') return true;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return payload.exp > nowSeconds;
+};
+
+type JwtPayload = {
+    exp?: number;
+    [key: string]: unknown;
+};
+
+const decodeJwtPayload = (token: string): JwtPayload | null => {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+
+        // JWT payload is base64url encoded JSON.
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+        // Add required padding.
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+
+        const json = atob(padded);
+        return JSON.parse(json) as JwtPayload;
+    } catch {
+        return null;
+    }
 };

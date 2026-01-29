@@ -8,11 +8,12 @@
  * - Scaling decisions table with timestamps, decisions, and reasons
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import * as metricsService from '../services/metricsService';
-import { Metric, ScalingDecision } from '../types/metrics.types';
+import * as instanceService from '../services/instanceService';
+import { Metric, ScalingDecision, SimulateMetricsRequest } from '../types/metrics.types';
 import { transformMetricsForChart } from '../utils/chartHelpers';
 import { formatDateTime } from '../utils/chartHelpers';
 import ErrorMessage from '../components/ErrorMessage';
@@ -28,14 +29,43 @@ const InstanceMetricsPage: React.FC = () => {
     // Data state
     const [metrics, setMetrics] = useState<Metric[]>([]);
     const [decisions, setDecisions] = useState<ScalingDecision[]>([]);
+    const [isMonitoring, setIsMonitoring] = useState<boolean | null>(null);
 
     // UI state
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [metricsLimit, setMetricsLimit] = useState<number>(50);
+
+    // Simulation form state
+    const [simulationType, setSimulationType] = useState<'instant' | 'prolonged'>('instant');
+    const [cpuUtilization, setCpuUtilization] = useState<string>('95');
+    const [memoryUsage, setMemoryUsage] = useState<string>('70');
+    const [durationMinutes, setDurationMinutes] = useState<string>('10');
+    const [intervalSeconds, setIntervalSeconds] = useState<string>('30');
+    const [simulateLoading, setSimulateLoading] = useState<boolean>(false);
+    const [simulateError, setSimulateError] = useState<string | null>(null);
+    const [simulateSuccess, setSimulateSuccess] = useState<string | null>(null);
 
 
     // Ref to store interval ID for cleanup
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    /**
+     * Fetch instance monitoring status
+     * Gets instance list and extracts monitoring status for current instance
+     */
+    const fetchInstanceStatus = useCallback(async () => {
+        if (!instanceId) return;
+
+        try {
+            const instances = await instanceService.getInstances();
+            const instance = instances.find(inst => inst.instance_id === instanceId);
+            setIsMonitoring(instance?.is_monitoring ?? false);
+        } catch (err: any) {
+            // Silently fail - status is nice-to-have, not critical
+            console.error('Failed to fetch instance status:', err);
+        }
+    }, [instanceId]);
 
     /**
      * Fetch metrics and scaling decisions from API
@@ -54,14 +84,18 @@ const InstanceMetricsPage: React.FC = () => {
         setError(null);
 
         try {
-            // Fetch both metrics and decisions in parallel
-            const [metricsData, decisionsData] = await Promise.all([
-                metricsService.getMetrics(instanceId, 100),
-                metricsService.getScalingDecisions(instanceId, 50),
+            // Fetch metrics, decisions, and status in parallel
+            await Promise.all([
+                (async () => {
+                    const [metricsData, decisionsData] = await Promise.all([
+                        metricsService.getMetrics(instanceId, metricsLimit),
+                        metricsService.getScalingDecisions(instanceId, 50),
+                    ]);
+                    setMetrics(metricsData);
+                    setDecisions(decisionsData);
+                })(),
+                fetchInstanceStatus(),
             ]);
-
-            setMetrics(metricsData);
-            setDecisions(decisionsData);
 
             // Clear any previous errors on successful refresh
             setError(null);
@@ -76,7 +110,7 @@ const InstanceMetricsPage: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [instanceId]); // Only recreate when instanceId changes
+    }, [instanceId, metricsLimit, fetchInstanceStatus]); // Recreate when instanceId or metricsLimit changes
 
     /**
      * Fetch metrics and decisions on component mount
@@ -119,7 +153,45 @@ const InstanceMetricsPage: React.FC = () => {
      */
     const handleLogout = () => {
         logout();
-        navigate('/login');
+        navigate('/');
+    };
+
+    /**
+     * Handle metrics simulation form submission
+     */
+    const handleSimulateMetrics = async (e: FormEvent) => {
+        e.preventDefault();
+        setSimulateLoading(true);
+        setSimulateError(null);
+        setSimulateSuccess(null);
+
+        try {
+            // Build request payload based on simulation type
+            const payload: SimulateMetricsRequest = {
+                instance_id: instanceId!,
+                cpu_utilization: parseFloat(cpuUtilization),
+                memory_usage: parseFloat(memoryUsage),
+            };
+
+            // Add prolonged-specific fields only if type is 'prolonged'
+            if (simulationType === 'prolonged') {
+                payload.duration_minutes = parseInt(durationMinutes);
+                payload.interval_seconds = parseInt(intervalSeconds);
+            }
+
+            const message = await metricsService.simulateMetrics(payload);
+
+            setSimulateSuccess(message);
+            setTimeout(() => setSimulateSuccess(null), 3000);
+
+            // Refresh metrics and decisions after successful simulation
+            await fetchData(false);
+
+        } catch (err: any) {
+            setSimulateError(err.message);
+        } finally {
+            setSimulateLoading(false);
+        }
     };
 
     if (loading) {
@@ -151,7 +223,45 @@ const InstanceMetricsPage: React.FC = () => {
                         ← Back to Instances
                     </button>
 
-                    <h1>Instance Metrics: {instanceId}</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <h1 style={{ margin: 0 }}>Instance Metrics: {instanceId}</h1>
+
+                        {/* Monitoring Status Badge */}
+                        {isMonitoring === null ? (
+                            <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '4px',
+                                backgroundColor: '#f5f5f5',
+                                color: '#999',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                            }}>
+                                Loading...
+                            </span>
+                        ) : isMonitoring ? (
+                            <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '4px',
+                                backgroundColor: '#e8f5e9',
+                                color: '#2e7d32',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                            }}>
+                                Active
+                            </span>
+                        ) : (
+                            <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '4px',
+                                backgroundColor: '#ffebee',
+                                color: '#d32f2f',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                            }}>
+                                Inactive
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <UserProfileButton onLogout={handleLogout} />
             </div>
@@ -168,9 +278,37 @@ const InstanceMetricsPage: React.FC = () => {
             {/* Metrics Charts */}
             {metrics.length > 0 && (
                 <div style={{ marginBottom: '40px' }}>
-                    <h2 style={{ marginBottom: '20px' }}>Resource Usage Over Time</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2 style={{ margin: 0 }}>Resource Usage Over Time</h2>
+
+                        {/* Metrics Limit Dropdown */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <label htmlFor="metrics-limit" style={{ fontSize: '14px', color: '#666' }}>
+                                Metrics limit:
+                            </label>
+                            <select
+                                id="metrics-limit"
+                                value={metricsLimit}
+                                onChange={(e) => setMetricsLimit(Number(e.target.value))}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '14px',
+                                    border: '1px solid #ccc',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    backgroundColor: 'white',
+                                }}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
+                    </div>
 
                     {/* CPU Chart */}
+
                     <MetricsChart
                         data={cpuData}
                         title="CPU Usage (%)"
@@ -187,6 +325,164 @@ const InstanceMetricsPage: React.FC = () => {
                     />
                 </div>
             )}
+
+            {/* Simulate Metrics Section */}
+            <div style={{
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                padding: '20px',
+                marginBottom: '40px',
+                backgroundColor: '#f9f9f9',
+            }}>
+                <h2 style={{ marginTop: 0 }}>Simulate Metrics</h2>
+
+                {simulateError && <ErrorMessage error={simulateError} />}
+                {simulateSuccess && (
+                    <div style={{
+                        padding: '10px',
+                        marginBottom: '15px',
+                        backgroundColor: '#e8f5e9',
+                        color: '#2e7d32',
+                        border: '1px solid #2e7d32',
+                        borderRadius: '4px',
+                    }}>
+                        {simulateSuccess}
+                    </div>
+                )}
+
+                <form onSubmit={handleSimulateMetrics}>
+                    {/* Simulation Type */}
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                            Simulation Type:
+                        </label>
+                        <select
+                            value={simulationType}
+                            onChange={(e) => setSimulationType(e.target.value as 'instant' | 'prolonged')}
+                            disabled={simulateLoading}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                fontSize: '14px',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                backgroundColor: 'white',
+                            }}
+                        >
+                            <option value="instant">Instant</option>
+                            <option value="prolonged">Prolonged</option>
+                        </select>
+                    </div>
+
+                    {/* CPU Utilization */}
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                            CPU Utilization (%):
+                        </label>
+                        <input
+                            type="number"
+                            value={cpuUtilization}
+                            onChange={(e) => setCpuUtilization(e.target.value)}
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            disabled={simulateLoading}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                fontSize: '14px',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                            }}
+                        />
+                    </div>
+
+                    {/* Memory Usage */}
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                            Memory Usage (%):
+                        </label>
+                        <input
+                            type="number"
+                            value={memoryUsage}
+                            onChange={(e) => setMemoryUsage(e.target.value)}
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            disabled={simulateLoading}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                fontSize: '14px',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                            }}
+                        />
+                    </div>
+
+                    {/* Prolonged-specific fields */}
+                    {simulationType === 'prolonged' && (
+                        <>
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                                    Duration (minutes):
+                                </label>
+                                <input
+                                    type="number"
+                                    value={durationMinutes}
+                                    onChange={(e) => setDurationMinutes(e.target.value)}
+                                    min="1"
+                                    disabled={simulateLoading}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        fontSize: '14px',
+                                        border: '1px solid #ccc',
+                                        borderRadius: '4px',
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                                    Interval (seconds):
+                                </label>
+                                <input
+                                    type="number"
+                                    value={intervalSeconds}
+                                    onChange={(e) => setIntervalSeconds(e.target.value)}
+                                    min="1"
+                                    disabled={simulateLoading}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        fontSize: '14px',
+                                        border: '1px solid #ccc',
+                                        borderRadius: '4px',
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={simulateLoading}
+                        style={{
+                            padding: '10px 20px',
+                            backgroundColor: simulateLoading ? '#ccc' : '#1976d2',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: simulateLoading ? 'not-allowed' : 'pointer',
+                            fontSize: '14px',
+                        }}
+                    >
+                        {simulateLoading ? 'Running...' : 'Run Simulation'}
+                    </button>
+                </form>
+            </div>
 
             {/* Scaling Decisions Table */}
             <div>
@@ -224,7 +520,6 @@ const InstanceMetricsPage: React.FC = () => {
                             </thead>
                             <tbody>
                                 {decisions.map((decision) => {
-                                    console.log('Formatted timestamp:', formatDateTime(decision.timestamp), 'Raw timestamp:', decision.timestamp);
                                     return (
                                         <tr key={decision.id} style={{ borderBottom: '1px solid #ddd' }}>
                                             <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -268,23 +563,6 @@ const InstanceMetricsPage: React.FC = () => {
                 )}
             </div>
 
-            {/* Refresh button */}
-            <div style={{ marginTop: '30px' }}>
-                <button
-                    onClick={() => fetchData()}
-                    style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#1976d2',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                    }}
-                >
-                    Refresh Data
-                </button>
-            </div>
         </div>
     );
 };

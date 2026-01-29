@@ -1,14 +1,3 @@
-/**
- * Instance Service
- * 
- * Handles AWS EC2 instance management:
- * - Fetching user's registered instances
- * - Registering new instances
- * - Starting/stopping monitoring
- * 
- * All functions strictly follow the OpenAPI specification
- */
-
 import axiosInstance from '../api/axiosInstance';
 import {
     Instance,
@@ -16,14 +5,9 @@ import {
     InstancesResponse,
     InstanceRegistrationResponse,
     MonitoringActionResponse,
+    DeleteInstanceResponse,
 } from '../types/instance.types';
 
-/**
- * Fetch all instances for the authenticated user
- * 
- * @returns Array of Instance objects
- * @throws Error on unauthorized or network failure
- */
 export const getInstances = async (): Promise<Instance[]> => {
     try {
         const response = await axiosInstance.get<InstancesResponse>('/api/instances/');
@@ -34,13 +18,6 @@ export const getInstances = async (): Promise<Instance[]> => {
     }
 };
 
-/**
- * Register a new AWS EC2 instance for monitoring
- * 
- * @param data - Instance registration data (instance_id, region, optional instance_type)
- * @returns Registered Instance object
- * @throws Error if instance already exists or validation fails
- */
 export const registerInstance = async (data: InstanceRegistration): Promise<Instance> => {
     try {
         const response = await axiosInstance.post<InstanceRegistrationResponse>('/api/instances/', data);
@@ -51,14 +28,6 @@ export const registerInstance = async (data: InstanceRegistration): Promise<Inst
     }
 };
 
-/**
- * Start monitoring an instance
- * Metrics will be collected every 30 seconds
- * 
- * @param instanceId - AWS instance ID (e.g., i-1234567890abcdef0)
- * @returns Success message
- * @throws Error if instance not found or already monitoring
- */
 export const startMonitoring = async (instanceId: string): Promise<string> => {
     try {
         const response = await axiosInstance.patch<MonitoringActionResponse>(
@@ -71,13 +40,6 @@ export const startMonitoring = async (instanceId: string): Promise<string> => {
     }
 };
 
-/**
- * Stop monitoring an instance
- * 
- * @param instanceId - AWS instance ID
- * @returns Success message
- * @throws Error if instance not found or not currently monitoring
- */
 export const stopMonitoring = async (instanceId: string): Promise<string> => {
     try {
         const response = await axiosInstance.patch<MonitoringActionResponse>(
@@ -86,6 +48,18 @@ export const stopMonitoring = async (instanceId: string): Promise<string> => {
         return response.data.message;
     } catch (error: any) {
         const errorMessage = error.response?.data?.error || 'Failed to stop monitoring.';
+        throw new Error(errorMessage);
+    }
+};
+
+export const deleteInstance = async (instanceId: string): Promise<string> => {
+    try {
+        const response = await axiosInstance.delete<DeleteInstanceResponse>(
+            `/api/instances/${instanceId}`
+        );
+        return response.data.message;
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.error || 'Failed to delete instance.';
         throw new Error(errorMessage);
     }
 };

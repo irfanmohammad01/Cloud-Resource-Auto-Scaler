@@ -6,7 +6,7 @@ import ErrorMessage from '../components/ErrorMessage';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
-    const { login: setAuthToken } = useAuth();
+    const { login: setAuthToken, isAuthenticated } = useAuth();
 
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
@@ -18,6 +18,13 @@ const LoginPage: React.FC = () => {
         e.preventDefault();
 
         setError(null);
+
+        // Guard against the "already logged in" edge case:
+        // avoid calling /api/auth/login if we already have a valid token.
+        if (isAuthenticated) {
+            navigate('/instances', { replace: true });
+            return;
+        }
 
         if (!authService.isValidEmail(email) || !authService.isValidPassword(password)) {
             setError('Please enter valid email and password');

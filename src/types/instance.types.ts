@@ -36,3 +36,8 @@ export interface InstanceRegistrationResponse {
 export interface MonitoringActionResponse {
     message: string;
 }
+
+// Response from DELETE /api/instances/{instance_id}
+export interface DeleteInstanceResponse {
+    message: string;
+}

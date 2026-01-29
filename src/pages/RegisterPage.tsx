@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/authService';
 import ErrorMessage from '../components/ErrorMessage';
+import { validatePasswordRules } from '../utils/passwordValidation';
 
 const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
@@ -15,6 +16,9 @@ const RegisterPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<boolean>(false);
+
+    // Live password rule state (updates instantly as the user types).
+    const passwordRules = validatePasswordRules(password);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -32,7 +36,7 @@ const RegisterPage: React.FC = () => {
         }
 
         if (!authService.isValidPassword(password)) {
-            setError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character');
+            setError('Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character');
             return;
         }
 
@@ -128,9 +132,46 @@ const RegisterPage: React.FC = () => {
                             border: '1px solid #ccc',
                             borderRadius: '4px',
                         }}
-                        placeholder="At least 6 characters"
+                        placeholder="Enter your password"
                         autoComplete="new-password"
                     />
+
+                    <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: 1.4 }}>
+                        {/* Plain + minimal: text + symbols only (no animations). */}
+                        <div>Password must include:</div>
+                        <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
+                            <li>
+                                <span style={{ color: passwordRules.minLength ? 'green' : 'red' }}>
+                                    {passwordRules.minLength ? '✓' : '✗'}
+                                </span>{' '}
+                                Minimum 8 characters
+                            </li>
+                            <li>
+                                <span style={{ color: passwordRules.uppercase ? 'green' : 'red' }}>
+                                    {passwordRules.uppercase ? '✓' : '✗'}
+                                </span>{' '}
+                                At least one uppercase letter
+                            </li>
+                            <li>
+                                <span style={{ color: passwordRules.lowercase ? 'green' : 'red' }}>
+                                    {passwordRules.lowercase ? '✓' : '✗'}
+                                </span>{' '}
+                                At least one lowercase letter
+                            </li>
+                            <li>
+                                <span style={{ color: passwordRules.number ? 'green' : 'red' }}>
+                                    {passwordRules.number ? '✓' : '✗'}
+                                </span>{' '}
+                                At least one number
+                            </li>
+                            <li>
+                                <span style={{ color: passwordRules.special ? 'green' : 'red' }}>
+                                    {passwordRules.special ? '✓' : '✗'}
+                                </span>{' '}
+                                At least one special character
+                            </li>
+                        </ul>
+                    </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
