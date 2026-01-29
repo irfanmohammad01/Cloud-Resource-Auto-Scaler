@@ -1,7 +1,6 @@
 import axiosInstance from '../api/axiosInstance';
 import {
     Metric,
-    ScalingDecision,
     MetricsResponse,
     ScalingDecisionsResponse,
     SimulateMetricsRequest,
@@ -22,13 +21,17 @@ export const getMetrics = async (instanceId: string, limit: number = 100): Promi
     }
 };
 
-export const getScalingDecisions = async (instanceId: string, limit: number = 50): Promise<ScalingDecision[]> => {
+export const getScalingDecisions = async (
+    instanceId: string,
+    page: number = 1,
+    pageSize: number = 20
+): Promise<ScalingDecisionsResponse> => {
     try {
         const response = await axiosInstance.get<ScalingDecisionsResponse>(
             `/api/metrics/decisions/${instanceId}`,
-            { params: { limit } }
+            { params: { page, page_size: pageSize } }
         );
-        return response.data.decisions;
+        return response.data;
     } catch (error: any) {
         const errorMessage = error.response?.data?.error || 'Failed to fetch scaling decisions.';
         throw new Error(errorMessage);

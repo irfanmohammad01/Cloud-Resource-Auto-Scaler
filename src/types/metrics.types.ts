@@ -33,10 +33,21 @@ export interface MetricsResponse {
     metrics: Metric[];
 }
 
+// Pagination metadata from API
+export interface PaginationMetadata {
+    page: number;
+    page_size: number;
+    total_count: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+}
+
 // Response from GET /api/metrics/decisions/{instance_id}
 export interface ScalingDecisionsResponse {
     instance_id: string;
     decisions: ScalingDecision[];
+    pagination: PaginationMetadata;
 }
 
 // Chart data point interface for visualization

@@ -46,6 +46,10 @@ const InstanceMetricsPage: React.FC = () => {
     const [simulateError, setSimulateError] = useState<string | null>(null);
     const [simulateSuccess, setSimulateSuccess] = useState<string | null>(null);
 
+    // Pagination state for decisions
+    const [decisionsPage, setDecisionsPage] = useState<number>(1);
+    const [decisionsHasMore, setDecisionsHasMore] = useState<boolean>(false);
+    const [decisionsLoadingMore, setDecisionsLoadingMore] = useState<boolean>(false);
 
     // Ref to store interval ID for cleanup
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -87,12 +91,14 @@ const InstanceMetricsPage: React.FC = () => {
             // Fetch metrics, decisions, and status in parallel
             await Promise.all([
                 (async () => {
-                    const [metricsData, decisionsData] = await Promise.all([
-                        metricsService.getMetrics(instanceId, metricsLimit),
-                        metricsService.getScalingDecisions(instanceId, 50),
-                    ]);
+                    const metricsData = await metricsService.getMetrics(instanceId, metricsLimit);
                     setMetrics(metricsData);
-                    setDecisions(decisionsData);
+
+                    // Fetch decisions with pagination (always page 1 for initial/refresh)
+                    const decisionsResponse = await metricsService.getScalingDecisions(instanceId, 1, 20);
+                    setDecisions(decisionsResponse.decisions);
+                    setDecisionsPage(1);
+                    setDecisionsHasMore(decisionsResponse.pagination.has_next);
                 })(),
                 fetchInstanceStatus(),
             ]);
@@ -191,6 +197,30 @@ const InstanceMetricsPage: React.FC = () => {
             setSimulateError(err.message);
         } finally {
             setSimulateLoading(false);
+        }
+    };
+
+    /**
+     * Load more scaling decisions
+     */
+    const handleLoadMoreDecisions = async () => {
+        if (!instanceId || decisionsLoadingMore) return;
+
+        setDecisionsLoadingMore(true);
+
+        try {
+            const nextPage = decisionsPage + 1;
+            const decisionsResponse = await metricsService.getScalingDecisions(instanceId, nextPage, 20);
+
+            // Append new decisions to existing list
+            setDecisions(prev => [...prev, ...decisionsResponse.decisions]);
+            setDecisionsPage(nextPage);
+            setDecisionsHasMore(decisionsResponse.pagination.has_next);
+        } catch (err: any) {
+            console.error('Failed to load more decisions:', err);
+            setError(err.message);
+        } finally {
+            setDecisionsLoadingMore(false);
         }
     };
 
@@ -493,77 +523,103 @@ const InstanceMetricsPage: React.FC = () => {
                         No scaling decisions yet. Decisions are generated based on metric analysis.
                     </p>
                 ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{
-                            width: '100%',
-                            borderCollapse: 'collapse',
-                            border: '1px solid #ddd',
-                        }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#f5f5f5' }}>
-                                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                                        Timestamp
-                                    </th>
-                                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                                        Decision
-                                    </th>
-                                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                                        CPU (%)
-                                    </th>
-                                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                                        Memory (%)
-                                    </th>
-                                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                                        Reason
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {decisions.map((decision) => {
-                                    return (
-                                        <tr key={decision.id} style={{ borderBottom: '1px solid #ddd' }}>
-                                            <td style={{ padding: '12px', fontSize: '14px' }}>
-                                                {formatDateTime(decision.timestamp)}
-                                            </td>
-                                            <td style={{ padding: '12px' }}>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: '4px',
-                                                    fontSize: '12px',
-                                                    fontWeight: 'bold',
-                                                    backgroundColor:
-                                                        decision.decision === 'scale_up' ? '#ffebee' :
-                                                            decision.decision === 'scale_down' ? '#e8f5e9' :
-                                                                '#fff3e0',
-                                                    color:
-                                                        decision.decision === 'scale_up' ? '#d32f2f' :
-                                                            decision.decision === 'scale_down' ? '#2e7d32' :
-                                                                '#ef6c00',
-                                                }}>
-                                                    {decision.decision === 'scale_up' ? 'SCALE UP' :
-                                                        decision.decision === 'scale_down' ? 'SCALE DOWN' :
-                                                            'NO ACTION'}
-                                                </span>
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '14px' }}>
-                                                {decision.cpu_utilization.toFixed(2)}%
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '14px' }}>
-                                                {decision.memory_usage.toFixed(2)}%
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '14px', maxWidth: '400px' }}>
-                                                {decision.reason}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                border: '1px solid #ddd',
+                            }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                                            Timestamp
+                                        </th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                                            Decision
+                                        </th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                                            CPU (%)
+                                        </th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                                            Memory (%)
+                                        </th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                                            Reason
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {decisions.map((decision) => {
+                                        return (
+                                            <tr key={decision.id} style={{ borderBottom: '1px solid #ddd' }}>
+                                                <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                    {formatDateTime(decision.timestamp)}
+                                                </td>
+                                                <td style={{ padding: '12px' }}>
+                                                    <span style={{
+                                                        padding: '4px 8px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '12px',
+                                                        fontWeight: 'bold',
+                                                        backgroundColor:
+                                                            decision.decision === 'scale_up' ? '#ffebee' :
+                                                                decision.decision === 'scale_down' ? '#e8f5e9' :
+                                                                    '#fff3e0',
+                                                        color:
+                                                            decision.decision === 'scale_up' ? '#d32f2f' :
+                                                                decision.decision === 'scale_down' ? '#2e7d32' :
+                                                                    '#ef6c00',
+                                                    }}>
+                                                        {decision.decision === 'scale_up' ? 'SCALE UP' :
+                                                            decision.decision === 'scale_down' ? 'SCALE DOWN' :
+                                                                'NO ACTION'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                    {decision.cpu_utilization.toFixed(2)}%
+                                                </td>
+                                                <td style={{ padding: '12px', fontSize: '14px' }}>
+                                                    {decision.memory_usage.toFixed(2)}%
+                                                </td>
+                                                <td style={{ padding: '12px', fontSize: '14px', maxWidth: '400px' }}>
+                                                    {decision.reason}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Load More Button */}
+                        {decisionsHasMore && (
+                            <div style={{
+                                marginTop: '15px',
+                                textAlign: 'center'
+                            }}>
+                                <button
+                                    onClick={handleLoadMoreDecisions}
+                                    disabled={decisionsLoadingMore}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: 'transparent',
+                                        color: decisionsLoadingMore ? '#999' : '#1976d2',
+                                        border: `1px solid ${decisionsLoadingMore ? '#ccc' : '#1976d2'}`,
+                                        borderRadius: '4px',
+                                        cursor: decisionsLoadingMore ? 'not-allowed' : 'pointer',
+                                        fontSize: '14px',
+                                    }}
+                                >
+                                    {decisionsLoadingMore ? 'Loading...' : 'Load more decisions'}
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
-        </div>
+        </div >
     );
 };
 
